@@ -52,6 +52,8 @@ int main(void)
 	    if(i2cStructPtr->status)
 	        __no_operation();               // Handle error, Success = 0, Error > 0
 
+	    i2c_locateDevices();                // Check ptr->presentDevices to see what devices were found
+
 
 	    delayMs(1000);
 
