@@ -19,6 +19,7 @@ void setupIO(void);
 
 /* Globals */
 I2C_Struct* i2cStructPtr;                   // To access the i2c struct you need a pointer to it, the original lives in i2c.c
+unsigned char txBytes[2] = {};
 
 int main(void)
 {
@@ -27,16 +28,24 @@ int main(void)
 	setupClocks();
 	setupIO();
 
-	i2c_init();
-	i2cStructPtr = i2c_getStruct();         // Calling this will allow you to point to the i2c struct wherever you are in code ( or you can extern the struct )
+	i2cStructPtr = i2c_init();
 
 	while(1){
+
+	    // In this example, we are writing 0xAA to register 0x00 and reading 5 bytes starting at address 0x00
+	    // Keep in mind, you will likely need to modify these values per your I2C device
+
+	    txBytes[0] = 0x00;                  // First byte is address writing TO
+	    txBytes[1] = 0xAA;                  // Second byte would typically be data writing TO register
+	    if(i2c_write(I2C_DEFAULT_PERIPHERAL_ADDRESS, 2, txBytes)->status == I2C_Success)
+	        __no_operation();               // You can use the function as a pointer itself if desired
+
 	    //           vv-your address     # bytes-v   vvv-register address
-	    i2c_read(I2C_DEFAULT_PERIPHERAL_ADDRESS, 5, 0x92);
+	    i2c_read(I2C_DEFAULT_PERIPHERAL_ADDRESS, 5, 0x00);
 	    // A good way to test the read function is to find your device's WHO_AM_I or DEVICE_ID register
 
 	    // Set a breakpoint here and check on your struct pointer to find data + status
-	    if(*i2cStructPtr->dataPtr)
+	    if(i2cStructPtr->status == I2C_Success)
 	        __no_operation();
 
 	    // Handle errors, if any
