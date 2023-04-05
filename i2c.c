@@ -17,7 +17,7 @@ unsigned char rxJunk, i2cPtrOffset;           // junk is just to fix RX handling
 
 /*- - - -  FUNCTIONS - - - -*/
 
-void i2c_init(void){
+I2C_Struct* i2c_init(void){
     // Initialize i2c functionality on boot and re-initialize in case of failure
 
     // Because this function is also used to reset i2c module, misconfigure, toggle, then reconfigure GPIO
@@ -58,67 +58,69 @@ void i2c_init(void){
 
     __enable_interrupt();                                              // Just in case you haven't done this already
 
+    return &i2c;
+
 }
 
-void i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr){
+I2C_Struct* i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr){
     // Write is used for reading also, so this gets called in i2c_read()
     // To write bytes, fill the dataPtr with [regAddress][data] etc
     // It's easier to make a separate function call per register, than to configure many registers at once at once
 
-    if(i2c_isBusy()){
+    if(i2c_isBusy())
         i2c_handleError();
-        return;
+    else{
+        i2c.expectedNumberBytes = numberBytes;
+        i2c.dataPtr = dataPtr;
+
+        // Reconfigure all the registers for this specific transaction
+        I2C_CONTROL0_REG |= UCSWRST;
+        I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                    // Set peripheral address
+        I2C_TX_BYTE_COUNTER_THRESHOLD_REG = numberBytes;                   // Byte counter set to length of message
+        I2C_CONTROL0_REG |= (UCTR|UCMODE|UCSYNC|UCSSEL_3|UCMST|UCTXSTT);   // Set to I2C Master Transmit Mode using SMCLK, Sync Enabled
+        I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                           // Automatic STOPs, Low Clock Timeout after 34ms
+        I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                  // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
+        I2C_TX_BUFF = 0x00;                                                // Empty TX Buffer before transmittion
+        I2C_INTERRUPT_FLAG_REG = 0x0000;                                   // Initially clear all interrupt flags
+        I2C_CONTROL0_REG &= ~UCSWRST;                                      // Ensure this bit is cleared so everything works
+        I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                            // Enable selected interrupts
+
+        // At this point, a START condition will trigger, peripheral address is sent and TX BUFF EMPTY Interrupt fires
+        delayUs(80);                                                       // Testing reveals 60-80us delay needed if reading immediately after write
     }
-
-    i2c.expectedNumberBytes = numberBytes;
-    i2c.dataPtr = dataPtr;
-
-    // Reconfigure all the registers for this specific transaction
-    I2C_CONTROL0_REG |= UCSWRST;
-    I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                    // Set peripheral address
-    I2C_TX_BYTE_COUNTER_THRESHOLD_REG = numberBytes;                   // Byte counter set to length of message
-    I2C_CONTROL0_REG |= (UCTR|UCMODE|UCSYNC|UCSSEL_3|UCMST|UCTXSTT);   // Set to I2C Master Transmit Mode using SMCLK, Sync Enabled
-    I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                           // Automatic STOPs, Low Clock Timeout after 34ms
-    I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                  // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
-    I2C_TX_BUFF = 0x00;                                                // Empty TX Buffer before transmittion
-    I2C_INTERRUPT_FLAG_REG = 0x0000;                                   // Initially clear all interrupt flags
-    I2C_CONTROL0_REG &= ~UCSWRST;                                      // Ensure this bit is cleared so everything works
-    I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                            // Enable selected interrupts
-
-    // At this point, a START condition will trigger, peripheral address is sent and TX BUFF EMPTY Interrupt fires
-    delayUs(80);                                                       // Testing reveals 60-80us delay needed if reading immediately after write
+    return &i2c;
 }
 
-void i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress){
+I2C_Struct* i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress){
     // Uses write to specify starting register and reads subsequent registers defined by numberBytes
 
-    if(i2c_isBusy()){
+    if(i2c_isBusy())
         i2c_handleError();
-        return;
+    else{
+        i2c.expectedNumberBytes = 1;
+        *i2c.dataPtr = registerAddress;
+
+        i2c_write(peripheralAddress, 1, i2c.dataPtr);                      // Send Register Address
+
+        i2c.expectedNumberBytes = numberBytes;
+
+        // Reconfigure all the registers for this specific transaction
+        I2C_CONTROL0_REG |= UCSWRST;
+        I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                    // Set peripheral address
+        I2C_TX_BYTE_COUNTER_THRESHOLD_REG = numberBytes;                   // Byte counter set to length of message
+        I2C_CONTROL0_REG &= ~UCTR;                                         // Ensure Receiver Mode
+        I2C_CONTROL0_REG |= (UCMODE|UCSYNC|UCSSEL_3|UCMST|UCTXSTT);        // Set to I2C Master Mode using SMCLK, Sync Enabled
+        I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                           // Automatic STOPs, Low Clock Timeout after 34ms
+        I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                  // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
+        rxJunk = I2C_RX_BUFF;                                              // This is necessary to prevent reading more than what we want
+        I2C_INTERRUPT_FLAG_REG = 0x0000;                                   // Initially clear all interrupt flags
+        I2C_CONTROL0_REG &= ~UCSWRST;                                      // Ensure this bit is cleared so everything works
+        I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                            // Enable selected interrupts - STOP Interrupt
+
+        // At this point, a START condition will trigger, peripheral address is sent and DATA RX Interrupt fires
+        delayUs(40*numberBytes);                                           // This seems to work reliably, don't go lower
     }
-
-    i2c.expectedNumberBytes = 1;
-    *i2c.dataPtr = registerAddress;
-
-    i2c_write(peripheralAddress, 1, i2c.dataPtr);                      // Send Register Address
-
-    i2c.expectedNumberBytes = numberBytes;
-
-    // Reconfigure all the registers for this specific transaction
-    I2C_CONTROL0_REG |= UCSWRST;
-    I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                    // Set peripheral address
-    I2C_TX_BYTE_COUNTER_THRESHOLD_REG = numberBytes;                   // Byte counter set to length of message
-    I2C_CONTROL0_REG &= ~UCTR;                                         // Ensure Receiver Mode
-    I2C_CONTROL0_REG |= (UCMODE|UCSYNC|UCSSEL_3|UCMST|UCTXSTT);        // Set to I2C Master Mode using SMCLK, Sync Enabled
-    I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                           // Automatic STOPs, Low Clock Timeout after 34ms
-    I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                  // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
-    rxJunk = I2C_RX_BUFF;                                              // This is necessary to prevent reading more than what we want
-    I2C_INTERRUPT_FLAG_REG = 0x0000;                                   // Initially clear all interrupt flags
-    I2C_CONTROL0_REG &= ~UCSWRST;                                      // Ensure this bit is cleared so everything works
-    I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                            // Enable selected interrupts - STOP Interrupt
-
-    // At this point, a START condition will trigger, peripheral address is sent and DATA RX Interrupt fires
-    delayUs(40*numberBytes);                                           // This seems to work reliably, don't go lower
+    return &i2c;
 }
 
 I2C_Status i2c_isBusy(void){
@@ -136,10 +138,6 @@ I2C_Status i2c_isBusy(void){
             return I2C_Line_Busy;                   // We tried, but the line is still busy, maybe RESET MCU
     }
     return I2C_Success;
-}
-
-I2C_Struct* i2c_getStruct(void){
-    return &i2c;
 }
 
 void i2c_handleError(void){

@@ -55,7 +55,7 @@
 // RX/TX / Init
 #define I2C_BASE                            EUSCI_B2_BASE                   // ** v v CHANGE THESE IF NEEDED v v **
 #define I2C_BUFFER_SIZE                     50
-#define I2C_DEFAULT_PERIPHERAL_ADDRESS      #error "Update Peripheral Address in i2c.h"
+#define I2C_DEFAULT_PERIPHERAL_ADDRESS      #error "Configure #defines per your application"
 #define I2C_PRESCALER_VALUE                 20
 #define I2C_CONTROL0_REG                    UCB2CTLW0
 #define I2C_CONTROL1_REG                    UCB2CTLW1
@@ -100,18 +100,15 @@ typedef struct
 
 
 /*- - - -  FUNCTIONS - - - -*/
-void i2c_init(void);
-void i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr);
-void i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress);
+I2C_Struct* i2c_init(void);
+I2C_Struct* i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr);
+I2C_Struct* i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress);
 void i2c_handleError(void);
-
-I2C_Struct* i2c_getStruct(void);
 I2C_Status i2c_isBusy(void);
 
 void delayMs(unsigned int ms);
 void delayUs(unsigned int us);
 
-#error "Make sure you change all the i2c #defines to suit your application! Delete me at the bottom of i2c.h"
 
 
 
