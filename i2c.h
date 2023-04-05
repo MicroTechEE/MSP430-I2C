@@ -93,6 +93,7 @@ typedef struct
 {
     unsigned char* dataPtr;
     unsigned char expectedNumberBytes;
+    unsigned char presentDevices[20];                                       // 20 should be more than enough
     I2C_Status status;
     // Put things her to assist with transmissions, such as status codes, etc make this yours
 }I2C_Struct;
@@ -103,6 +104,8 @@ typedef struct
 I2C_Struct* i2c_init(void);
 I2C_Struct* i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr);
 I2C_Struct* i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress);
+I2C_Struct* i2c_sendAddressOnly(int peripheralAddress);
+I2C_Struct* i2c_locateDevices(void);
 void i2c_handleError(void);
 I2C_Status i2c_isBusy(void);
 

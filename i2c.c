@@ -140,6 +140,42 @@ I2C_Status i2c_isBusy(void){
     return I2C_Success;
 }
 
+I2C_Struct* i2c_sendAddressOnly(int peripheralAddress){
+
+    if(i2c_isBusy())
+        i2c_handleError();
+    else{
+        // Reconfigure all the registers for this specific transaction
+        // According to Reference Manual, setting UCTXSTT and UCTXSTP at the same time allows for only the address to be send
+        // This is designed to send a write to a device to see if it ACKs or NACKs, used with status enum for maximum benefit
+        I2C_CONTROL0_REG |= UCSWRST;
+        I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                          // Set peripheral address
+        I2C_TX_BYTE_COUNTER_THRESHOLD_REG = 0x00;                                // Byte counter set to length of message
+        I2C_CONTROL0_REG |= (UCMODE|UCTR|UCSYNC|UCSSEL_3|UCMST|UCTXSTP|UCTXSTT); // Set to I2C Controller Transmit Mode using SMCLK, Sync Enabled, send START and STOP conditions
+        I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                                 // Automatic STOPs, Low Clock Timeout after 34ms
+        I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                        // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
+        I2C_TX_BUFF = 0x00;                                                      // Empty TX Buffer before transmittion
+        I2C_INTERRUPT_FLAG_REG = 0x0000;                                         // Initially clear all interrupt flags
+        I2C_CONTROL0_REG &= ~UCSWRST;                                            // Ensure this bit is cleared so everything works
+        I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                                  // Enable selected interrupts
+
+        // At this point, a START condition will trigger, peripheral address is sent and TX BUFF EMPTY Interrupt fires
+        delayUs(80);                                                             // Testing reveals 60-80us delay needed if reading immediately after write
+    }
+
+    return &i2c;
+
+}
+
+I2C_Struct* i2c_locateDevices(void){
+    unsigned char i, index = 0;
+
+    for(i=0;i<0x80;i++){
+        if(i2c_sendAddressOnly(i)->status == I2C_Success)                        // If a device ACKs back, add it's address to the list
+            i2c.presentDevices[index++] = i;                                     // i2c addresses are only 7-bit so 0x7F is max address
+    }
+    return &i2c;
+}
 void i2c_handleError(void){
     __no_operation();           // Your code here
 }
@@ -181,7 +217,7 @@ __interrupt void I2C_ISR(void)
         }
         break;
     case I2C_IV_START_CONDITION:
-        // TODO Figure out why this interrupt never fires
+        // TODO Figure out why this interrupt never fires even when enabled
         __no_operation(); // BP
         break;
     case I2C_IV_STOP_CONDITION:                         // Stop condition occurs when TX or RX Byte Threshold has been reached
@@ -218,5 +254,5 @@ __interrupt void I2C_ISR(void)
     default: break;
     }
 
-    __bic_SR_register_on_exit(LPM4_bits);     // Exit LPM
+    __bic_SR_register_on_exit(LPM4_bits);               // Exit LPM
 }
