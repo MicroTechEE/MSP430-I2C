@@ -54,6 +54,9 @@ int main(void)
 
 	    i2c_locateDevices();                // Check ptr->presentDevices to see what devices were found
 
+        delayMs(1000);
+                                            // Some devices don't use registers, use this function to read i2c devices in a generic sense
+	    i2c_readNoRegister(I2C_DEFAULT_PERIPHERAL_ADDRESS, 10);
 
 	    delayMs(1000);
 
