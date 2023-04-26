@@ -39,6 +39,7 @@ When using i2c_read, you populate the arguments with:
   - Number of bytes being read
   - Register address to start read operation
       o When reading, you start at an address, and you can read registers in a row depending on your Number of Bytes argument
+      o Some devices aren't read using registers, you just 'read the device itself'. For these devices, use i2c_readNoRegister().
       
 ### Example:
   Read 5 bytes starting at 0x10 for our device ( address 0x34 ). 
