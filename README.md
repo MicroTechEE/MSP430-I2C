@@ -25,7 +25,7 @@ When using i2c_write, you populate the arguments with:
   - Peripheral Address
   - Number of Bytes being written
   - Pointer ( or array ) of data to be written
-      o Typically, two bytes are written at a time, first being register address and second is data being written
+      * Typically, two bytes are written at a time, first being register address and second is data being written
 
 ### Example:
   Write one byte to address 0x10 on our device ( address 0x34 ).
@@ -35,11 +35,11 @@ When using i2c_write, you populate the arguments with:
     i2c_write(0x34, 2, txBuffer);
   
 When using i2c_read, you populate the arguments with:
-  - Peripheral address
-  - Number of bytes being read
-  - Register address to start read operation
-      o When reading, you start at an address, and you can read registers in a row depending on your Number of Bytes argument
-      o Some devices aren't read using registers, you just 'read the device itself'. For these devices, use i2c_readNoRegister().
+  * Peripheral address
+  * Number of bytes being read
+  * Register address to start read operation
+      * When reading, you start at an address, and you can read registers in a row depending on your Number of Bytes argument
+      * Some devices aren't read using registers, you just 'read the device itself'. For these devices, use i2c_readNoRegister().
       
 ### Example:
   Read 5 bytes starting at 0x10 for our device ( address 0x34 ). 
