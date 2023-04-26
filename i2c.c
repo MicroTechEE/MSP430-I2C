@@ -123,6 +123,35 @@ I2C_Struct* i2c_read(unsigned char peripheralAddress, unsigned char numberBytes,
     return &i2c;
 }
 
+I2C_Struct* i2c_readNoRegister(unsigned char peripheralAddress, unsigned char numberBytes){
+    // Some devices don't have specific registers to read from, This function will help read those devices
+    // We omit the initial write transaction and go straight to reading, no register address included
+
+    if(i2c_isBusy())
+        i2c_handleError();
+    else{
+        i2c.expectedNumberBytes = numberBytes;
+
+        // Reconfigure all the registers for this specific transaction
+        I2C_CONTROL0_REG |= UCSWRST;
+        I2C_PERIPHERAL_ADDRESS_REG = peripheralAddress;                    // Set peripheral address
+        I2C_TX_BYTE_COUNTER_THRESHOLD_REG = numberBytes;                   // Byte counter set to length of message
+        I2C_CONTROL0_REG &= ~UCTR;                                         // Ensure Receiver Mode
+        I2C_CONTROL0_REG |= (UCMODE|UCSYNC|UCSSEL_3|UCMST|UCTXSTT);        // Set to I2C Master Mode using SMCLK, Sync Enabled
+        I2C_CONTROL1_REG |= (UCASTP_2|UCCLTO_3);                           // Automatic STOPs, Low Clock Timeout after 34ms
+        I2C_BIT_RATE_PRESCALER_REG = I2C_PRESCALER_VALUE;                  // Divide SMCLK by 20 - 8MHz / 20 = 400kHz
+        rxJunk = I2C_RX_BUFF;                                              // This is necessary to prevent reading more than what we want
+        I2C_INTERRUPT_FLAG_REG = 0x0000;                                   // Initially clear all interrupt flags
+        I2C_CONTROL0_REG &= ~UCSWRST;                                      // Ensure this bit is cleared so everything works
+        I2C_INTERRUPT_ENABLE_REG = I2C_IE_MASK;                            // Enable selected interrupts - STOP Interrupt
+
+        // At this point, a START condition will trigger, peripheral address is sent and DATA RX Interrupt fires
+        delayUs(40*numberBytes);                                           // This seems to work reliably, don't go lower
+    }
+
+    return &i2c;
+}
+
 I2C_Status i2c_isBusy(void){
     // This function is called before reading and writing to check if line is busy
     // SDA and SCL will hang if something goes wrong, and ain't nobody got time for that

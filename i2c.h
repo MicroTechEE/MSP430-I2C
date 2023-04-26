@@ -5,6 +5,7 @@
  *      Author: Tom Bailey
  */
 
+#error "Configure #defines per your application, and delete this error afterward."
 
 /*- - - -  #INCLUDES - - - -*/
 #include "msp430.h"
@@ -55,7 +56,8 @@
 // RX/TX / Init
 #define I2C_BASE                            EUSCI_B2_BASE                   // ** v v CHANGE THESE IF NEEDED v v **
 #define I2C_BUFFER_SIZE                     50
-#define I2C_DEFAULT_PERIPHERAL_ADDRESS      #error "Configure #defines per your application"
+#error "Update your device address, and delete this error afterward. Note that the address is right justified ( not yet shifted ). The MSP430 will shift it automatically."
+#define I2C_DEFAULT_PERIPHERAL_ADDRESS      0xFF
 #define I2C_PRESCALER_VALUE                 20
 #define I2C_CONTROL0_REG                    UCB2CTLW0
 #define I2C_CONTROL1_REG                    UCB2CTLW1
@@ -104,6 +106,7 @@ typedef struct
 I2C_Struct* i2c_init(void);
 I2C_Struct* i2c_write(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char* dataPtr);
 I2C_Struct* i2c_read(unsigned char peripheralAddress, unsigned char numberBytes, unsigned char registerAddress);
+I2C_Struct* i2c_readNoRegister(unsigned char peripheralAddress, unsigned char numberBytes);
 I2C_Struct* i2c_sendAddressOnly(int peripheralAddress);
 I2C_Struct* i2c_locateDevices(void);
 void i2c_handleError(void);
